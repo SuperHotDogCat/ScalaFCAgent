@@ -2,9 +2,10 @@ package com.example
 
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import io.circe.parser._
+import io.circe._
+import io.circe.generic.semiauto._
+import io.circe.parser.decode
 import io.circe.syntax._
-import io.circe.generic.auto._ // 自動でエンコーダ/デコーダを生成
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
 
@@ -12,12 +13,20 @@ import org.scalatestplus.junit.JUnitRunner
 case class User(id: Long, name: String, email: String)
 case class UserList(users: List[User])
 
+object JsonCodecs {
+  implicit val userEncoder: Encoder[User] = deriveEncoder[User]
+  implicit val userDecoder: Decoder[User] = deriveDecoder[User]
+  implicit val userListEncoder: Encoder[UserList] = deriveEncoder[UserList]
+  implicit val userListDecoder: Decoder[UserList] = deriveDecoder[UserList]
+}
+
 @RunWith(classOf[JUnitRunner])
 class JsonLibrarySpec extends AnyFunSuite with Matchers {
+    import JsonCodecs._
+
     test("Serialize") {
         val user = User(1L, "Takahashi", "test@example.com")
         val expectedJson = """{"id":1,"name":"Takahashi","email":"test@example.com"}"""
-        // .asJson.noSpaces で不要な空白・改行のない文字列に変換
         user.asJson.noSpaces shouldBe expectedJson
     }
     test("Deserialize") {
@@ -28,7 +37,6 @@ class JsonLibrarySpec extends AnyFunSuite with Matchers {
     test("Serialize2") {
         val user = UserList(List(User(1L, "Takahashi", "test@example.com")))
         val expectedJson = """{"users":[{"id":1,"name":"Takahashi","email":"test@example.com"}]}"""
-        // .asJson.noSpaces で不要な空白・改行のない文字列に変換
         user.asJson.noSpaces shouldBe expectedJson
     }
     test("Deserialize2") {
