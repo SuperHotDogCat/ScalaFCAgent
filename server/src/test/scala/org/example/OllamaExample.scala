@@ -17,13 +17,13 @@ import org.scalafcagent.server.HttpServer
 // 起動:
 //   OLLAMA_MODEL=gemma4:e2b ./gradlew :server:runOllamaExample
 //
-// 別ターミナルから叩く:
-//   curl -s -X POST localhost:8080/v1/chat -H 'Content-Type: application/json' \
-//     -d '{"session":"u1","message":"今の東京の時刻を教えて"}'
+// 別ターミナルから叩く (OpenAI互換, ステートレスなのでmessagesを毎回渡す):
+//   curl -s -X POST localhost:8080/v1/chat/completions -H 'Content-Type: application/json' \
+//     -d '{"model":"gemma4:e2b","messages":[{"role":"user","content":"今の東京の時刻を教えて"}]}'
 //
 //   ストリーミング (SSE):
-//   curl -s -N -X POST localhost:8080/v1/chat/stream -H 'Content-Type: application/json' \
-//     -d '{"session":"u1","message":"今の東京の時刻を教えて"}'
+//   curl -s -N -X POST localhost:8080/v1/chat/completions -H 'Content-Type: application/json' \
+//     -d '{"model":"gemma4:e2b","messages":[{"role":"user","content":"今の東京の時刻を教えて"}],"stream":true}'
 //
 // 環境変数:
 //   HOST          (default 127.0.0.1)

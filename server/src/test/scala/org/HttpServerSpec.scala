@@ -10,8 +10,10 @@ import cats.effect.Ref
 import cats.effect.unsafe.implicits.global
 import io.circe.Decoder
 import io.circe.Encoder
+import io.circe.Json
 import io.circe.generic.semiauto.deriveDecoder
 import io.circe.generic.semiauto.deriveEncoder
+import io.circe.parser.parse
 import org.junit.runner.RunWith
 import org.scalafcagent.agent.AgentConfig
 import org.scalafcagent.chat.Message
@@ -122,20 +124,6 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
     (response.statusCode(), response.body())
   }
 
-  private def get(port: Int, path: String): (Int, String) = {
-    val request =
-      HttpRequest
-        .newBuilder()
-        .uri(URI.create(s"http://127.0.0.1:$port$path"))
-        .GET()
-        .build()
-
-    val response =
-      client.send(request, HttpResponse.BodyHandlers.ofString())
-
-    (response.statusCode(), response.body())
-  }
-
   private def postWithContentType(
     port: Int,
     path: String,
@@ -159,22 +147,57 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
     )
   }
 
-  test("Reply to a chat request") {
+  private def get(port: Int, path: String): (Int, String) = {
+    val request =
+      HttpRequest
+        .newBuilder()
+        .uri(URI.create(s"http://127.0.0.1:$port$path"))
+        .GET()
+        .build()
+
+    val response =
+      client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    (response.statusCode(), response.body())
+  }
+
+  private def body(json: Json, field: String): Option[String] =
+    json.hcursor.get[String](field).toOption
+
+  private def assistantContent(json: Json): Option[String] =
+    json.hcursor
+      .downField("choices")
+      .downArray
+      .downField("message")
+      .get[String]("content")
+      .toOption
+
+  private def errorMessage(json: Json): Option[String] =
+    json.hcursor.downField("error").get[String]("message").toOption
+
+  test("Reply to a chat completion request") {
     val program =
       for {
         mock <- mockLLMServer(List("Hello!"))
         server = mock._1
         result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
           IO.blocking(
-            post(http.port, "/v1/chat", """{"session":"u1","message":"hi"}""")
+            post(
+              http.port,
+              "/v1/chat/completions",
+              """{"model":"test-model","messages":[{"role":"user","content":"hi"}]}"""
+            )
           )
         }
       } yield result
 
-    val (status, body) = program.unsafeRunSync()
+    val (status, responseBody) = program.unsafeRunSync()
+    val json = parse(responseBody).toOption.get
 
     status shouldBe 200
-    body shouldBe """{"reply":"Hello!"}"""
+    body(json, "object") shouldBe Some("chat.completion")
+    body(json, "model") shouldBe Some("test-model")
+    assistantContent(json) shouldBe Some("Hello!")
   }
 
   test("Run a tool call and return the final output") {
@@ -185,25 +208,27 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
         requests = mock._2
         result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
           IO.blocking(
-            post(http.port, "/v1/chat", """{"session":"u1","message":"echo hi"}""")
+            post(
+              http.port,
+              "/v1/chat/completions",
+              """{"messages":[{"role":"user","content":"echo hi"}]}"""
+            )
           )
         }
         sent <- requests.get
       } yield (result, sent)
 
-    val ((status, body), sent) = program.unsafeRunSync()
+    val ((status, responseBody), sent) = program.unsafeRunSync()
 
     status shouldBe 200
-    body shouldBe """{"reply":"Done"}"""
+    assistantContent(parse(responseBody).toOption.get) shouldBe Some("Done")
 
     // 2回目のリクエストにToolの結果が含まれている
     sent should have size 2
-    val secondRequest = sent(1).map(_.content).mkString("\n")
-    secondRequest should include("<tool_result>")
-    secondRequest should include("hi")
+    sent(1).map(_.content).mkString("\n") should include("<tool_result>")
   }
 
-  test("Keep the conversation per session") {
+  test("Be stateless and use only the messages in the request") {
     val program =
       for {
         mock <- mockLLMServer(List("first", "second"))
@@ -211,8 +236,16 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
         requests = mock._2
         _ <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
           IO.blocking {
-            post(http.port, "/v1/chat", """{"session":"u1","message":"hi"}""")
-            post(http.port, "/v1/chat", """{"session":"u1","message":"again"}""")
+            post(
+              http.port,
+              "/v1/chat/completions",
+              """{"messages":[{"role":"user","content":"hi"}]}"""
+            )
+            post(
+              http.port,
+              "/v1/chat/completions",
+              """{"messages":[{"role":"user","content":"again"}]}"""
+            )
           }
         }
         sent <- requests.get
@@ -221,52 +254,7 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
     val sent = program.unsafeRunSync()
 
     sent should have size 2
-    // 2回目のリクエストには1回目の応答が履歴として含まれる
-    sent(1).map(_.content).mkString("\n") should include("first")
-  }
-
-  test("Separate the conversation per session") {
-    val program =
-      for {
-        mock <- mockLLMServer(List("first", "second"))
-        server = mock._1
-        requests = mock._2
-        _ <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
-          IO.blocking {
-            post(http.port, "/v1/chat", """{"session":"u1","message":"hi"}""")
-            post(http.port, "/v1/chat", """{"session":"u2","message":"hi"}""")
-          }
-        }
-        sent <- requests.get
-      } yield sent
-
-    val sent = program.unsafeRunSync()
-
-    sent should have size 2
-    // 別セッションなので2回目のリクエストに1回目の応答は含まれない
-    sent(1).map(_.content).mkString("\n") should not include "first"
-  }
-
-  test("Reset a session") {
-    val program =
-      for {
-        mock <- mockLLMServer(List("first", "second"))
-        server = mock._1
-        requests = mock._2
-        _ <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
-          IO.blocking {
-            post(http.port, "/v1/chat", """{"session":"u1","message":"hi"}""")
-            post(http.port, "/v1/sessions/u1/reset", "")
-            post(http.port, "/v1/chat", """{"session":"u1","message":"hi"}""")
-          }
-        }
-        sent <- requests.get
-      } yield sent
-
-    val sent = program.unsafeRunSync()
-
-    sent should have size 2
-    // reset後なので2つ目のpromptに1回目の応答は含まれない
+    // 状態を持たないので, 2回目に1回目の応答は含まれない
     sent(1).map(_.content).mkString("\n") should not include "first"
   }
 
@@ -280,10 +268,10 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
         }
       } yield result
 
-    val (status, body) = program.unsafeRunSync()
+    val (status, responseBody) = program.unsafeRunSync()
 
     status shouldBe 200
-    body shouldBe """{"status":"ok"}"""
+    responseBody shouldBe """{"status":"ok"}"""
   }
 
   test("Reject an invalid request") {
@@ -293,7 +281,29 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
         server = mock._1
         result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
           IO.blocking(
-            post(http.port, "/v1/chat", "not json")
+            post(http.port, "/v1/chat/completions", "not json")
+          )
+        }
+      } yield result
+
+    val (status, responseBody) = program.unsafeRunSync()
+
+    status shouldBe 400
+    errorMessage(parse(responseBody).toOption.get).isDefined shouldBe true
+  }
+
+  test("Reject an unsupported role") {
+    val program =
+      for {
+        mock <- mockLLMServer(List("Hello!"))
+        server = mock._1
+        result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
+          IO.blocking(
+            post(
+              http.port,
+              "/v1/chat/completions",
+              """{"messages":[{"role":"robot","content":"hi"}]}"""
+            )
           )
         }
       } yield result
@@ -312,18 +322,24 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
           IO.blocking(
             postWithContentType(
               http.port,
-              "/v1/chat/stream",
-              """{"session":"u1","message":"hi"}"""
+              "/v1/chat/completions",
+              """{"model":"test-model","messages":[{"role":"user","content":"hi"}],"stream":true}"""
             )
           )
         }
       } yield result
 
-    val (status, contentType, body) = program.unsafeRunSync()
+    val (status, contentType, responseBody) = program.unsafeRunSync()
 
     status shouldBe 200
     contentType should include("text/event-stream")
-    body shouldBe "data: {\"delta\":\"Hello!\"}\n\ndata: [DONE]\n\n"
+
+    responseBody should include("\"object\":\"chat.completion.chunk\"")
+    responseBody should include("\"model\":\"test-model\"")
+    responseBody should include("\"delta\":{\"role\":\"assistant\",\"content\":\"\"}")
+    responseBody should include("\"delta\":{\"content\":\"Hello!\"}")
+    responseBody should include("\"finish_reason\":\"stop\"")
+    responseBody should endWith("data: [DONE]\n\n")
   }
 
   test("Stream across a tool call as server-sent events") {
@@ -336,19 +352,19 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
           IO.blocking(
             postWithContentType(
               http.port,
-              "/v1/chat/stream",
-              """{"session":"u1","message":"echo hi"}"""
+              "/v1/chat/completions",
+              """{"messages":[{"role":"user","content":"echo hi"}],"stream":true}"""
             )
           )
         }
         sent <- requests.get
       } yield (result, sent)
 
-    val ((status, _, body), sent) = program.unsafeRunSync()
+    val ((status, _, responseBody), sent) = program.unsafeRunSync()
 
     status shouldBe 200
-    body should include("Done")
-    body should include("[DONE]")
+    responseBody should include("\"delta\":{\"content\":\"Done\"}")
+    responseBody should include("data: [DONE]")
 
     // Toolの結果が2回目のリクエストに含まれている
     sent should have size 2
