@@ -73,6 +73,23 @@ class ChatSpec extends AnyFunSuite with Matchers {
     chat.toolCalls("No tool here.") shouldBe empty
   }
 
+  test("Parse a tool call whose arguments are a JSON object") {
+    val output =
+      """<tool>
+        |{
+        |  "function_name": "search",
+        |  "arguments": {"query": "Scala", "limit": 10}
+        |}
+        |</tool>
+        |""".stripMargin
+
+    val result = chat.toolCalls(output)
+
+    result should have size 1
+    result.head.functionName shouldBe "search"
+    result.head.arguments shouldBe """{"query":"Scala","limit":10}"""
+  }
+
   test("Run tool calls and append the tool result") {
     val output =
       """<tool>

@@ -3,7 +3,9 @@ package org.scalafcagent.chat
 import scala.util.matching.Regex
 
 import cats.effect.IO
+import io.circe.ACursor
 import io.circe.Decoder
+import io.circe.DecodingFailure
 import io.circe.Json
 import io.circe.parser.decode
 import io.circe.parser.parse
@@ -78,12 +80,18 @@ object ChatFormat {
     Decoder.instance { cursor =>
       for {
         functionName <- cursor.get[String]("function_name")
-        arguments <- cursor.get[String]("arguments")
+        // argumentsはJSON文字列でもJSONオブジェクトでも受け付ける
+        arguments <- decodeArguments(cursor.downField("arguments"))
       } yield ToolCall(
         functionName = functionName,
         arguments = arguments
       )
     }
+
+  private def decodeArguments(cursor: ACursor): Decoder.Result[String] =
+    cursor.as[String].toOption
+      .orElse(cursor.focus.map(_.noSpaces))
+      .toRight(DecodingFailure("arguments", cursor.history))
 
   // デフォルト (XMLの <tool> / <tool_result>)
   val Default: ChatFormat = ChatFormat()
