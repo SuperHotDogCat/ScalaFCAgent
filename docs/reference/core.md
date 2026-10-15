@@ -169,6 +169,7 @@ class Chat(
 
   // 追加 (新しいChatを返す)
   def append(message: Message): Chat
+  def appendAll(additional: Vector[Message]): Chat
   def system(content: String): Chat
   def user(content: String): Chat
   def assistant(content: String): Chat
@@ -280,6 +281,11 @@ class Client(
   // Userからの1ターン. Tool解決まで含めた差分を到着順に流す
   def sendStream(userMessage: String): Stream[IO, String]
 
+  // 会話 (messages全体) を渡して1ターン実行する. 会話は初期状態に置き換える
+  def send(messages: Vector[Message]): IO[String]
+
+  def sendStream(messages: Vector[Message]): Stream[IO, String]
+
   // 実行中の会話
   def history: IO[Vector[Message]]
 
@@ -289,6 +295,8 @@ class Client(
 ```
 
 `maxToolCalls`を超えてTool呼び出しが続くとエラーになる。
+
+`send(messages)` / `sendStream(messages)`は, 会話を初期状態 (Toolの使い方のsystem promptなど) の後ろに`messages`を載せたものに置き換えてから1ターン実行する。履歴を毎回受け取るOpenAI互換APIのような用途向け。
 
 ### `Client.create`
 
@@ -326,6 +334,11 @@ case class AgentConfig(
 class Agent(val client: Client) {
   def send(message: String): IO[String]
   def sendStream(message: String): Stream[IO, String]
+
+  // 会話 (messages全体) を渡して1ターン実行する
+  def send(messages: Vector[Message]): IO[String]
+  def sendStream(messages: Vector[Message]): Stream[IO, String]
+
   def history: IO[Vector[Message]]
   def reset: IO[Unit]
 }

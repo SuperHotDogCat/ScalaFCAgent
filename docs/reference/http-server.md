@@ -1,7 +1,10 @@
 # Reference: HTTPサーバ (server)
 
 `server`モジュールは, `Agent`をHTTPリクエストで使えるようにするラッパー。
-`session`ごとに1つの`Agent` (=1会話) を保持する。
+**OpenAI互換**の `POST /v1/chat/completions` を提供する。
+
+状態を持たない**完全ステートレス**で, 会話は毎回リクエストの`messages`として受け取る。
+(サーバー側の会話保持はしない。履歴はクライアントが送る)
 
 コアの`lib`に重い依存(Pekko HTTP)を持ち込まないよう, 別モジュールにしている。
 なお, HTTP実装は[Apache Pekko HTTP](https://pekko.apache.org/)(Akka HTTPのApache-2.0ドロップインFork)を使っている。
@@ -10,48 +13,81 @@
 
 | Method | Path | リクエスト | レスポンス |
 | --- | --- | --- | --- |
+| `POST` | `/v1/chat/completions` | [Chat Completion リクエスト](#リクエスト) | `200` `chat.completion` |
+| `POST` | `/v1/chat/completions` (`stream: true`) | 同上 | `200` `text/event-stream` (SSE) |
 | `GET` | `/v1/health` | — | `200` `{"status":"ok"}` |
-| `POST` | `/v1/chat` | `{"session":"u1","message":"..."}` | `200` `{"reply":"..."}` |
-| `POST` | `/v1/chat/stream` | `{"session":"u1","message":"..."}` | `200` `text/event-stream` (SSE) |
-| `POST` | `/v1/sessions/{id}/reset` | — (body不要) | `200` `{"status":"ok"}` |
 
-エラー時は`{"error":"..."}`を返す。
+エラーはOpenAI互換の形で返す。
 
-- `400 Bad Request` — リクエストのJSONが不正
-- `500 Internal Server Error` — LLMServerやToolの実行に失敗 (`/v1/chat`のみ。`/v1/chat/stream`は接続後にエラーを`data: {"error":"..."}`として流す)
+```json
+{"error":{"message":"...","type":"invalid_request_error"}}
+```
+
+- `400 Bad Request` — リクエストのJSONが不正, または未対応の`role`
+- `500 Internal Server Error` — LLMServerやToolの実行に失敗
+  - ストリーミングでは接続後に `data: {"error":{"message":"...","type":"server_error"}}` として流す
+
+### リクエスト
+
+OpenAIの Chat Completion リクエストのうち, 使うフィールドだけを読む。
+
+```json
+{
+  "model": "gemma4:e2b",
+  "messages": [
+    {"role": "system", "content": "..."},
+    {"role": "user", "content": "今の東京の時刻を教えて"}
+  ],
+  "stream": false
+}
+```
+
+- `model` (任意) — レスポンスの`model`にそのまま返す。未指定ならサーバーのモデル名
+- `messages` (必須) — `role`は `system` / `developer` / `user` / `assistant` / `tool`
+- `stream` (任意, 既定`false`) — `true`でSSE
+
+`messages`はそのまま会話として使う。Toolの使い方のsystem promptはサーバーが先頭に差し込む。
+
+### レスポンス (非ストリーミング)
+
+```json
+{
+  "id": "chatcmpl-...",
+  "object": "chat.completion",
+  "created": 1792089308,
+  "model": "gemma4:e2b",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "現在の東京の時刻は ... です。"},
+      "finish_reason": "stop"
+    }
+  ]
+}
+```
+
+### ストリーミング (`stream: true`)
+
+LLMServer (Ollamaなど) のストリーミングをSSEで中継する。OpenAIと同じ `chat.completion.chunk` を並べ, 最後に `data: [DONE]` を返す。
 
 ```bash
-curl -s localhost:8080/v1/health
-curl -s -X POST localhost:8080/v1/chat \
+curl -s -N -X POST localhost:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"session":"u1","message":"今の東京の時刻を教えて"}'
-curl -s -X POST localhost:8080/v1/sessions/u1/reset
-```
-
-### ストリーミング (`/v1/chat/stream`)
-
-LLMServer (Ollamaなど) のストリーミングをSSEで中継する。本文の差分を到着順に流す。
-
-```bash
-curl -s -N -X POST localhost:8080/v1/chat/stream \
-  -H 'Content-Type: application/json' \
-  -d '{"session":"u1","message":"1から5まで数えて"}'
+  -d '{"model":"gemma4:e2b","messages":[{"role":"user","content":"1から5まで数えて"}],"stream":true}'
 ```
 
 ```
-data: {"delta":"1"}
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk","created":...,"model":"gemma4:e2b","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
 
-data: {"delta":"、"}
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk",...,"choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null}]}
 
 ...
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk",...,"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
 
 data: [DONE]
 
 ```
-
-- `data: {"delta":"..."}` — 本文の差分
-- `data: {"error":"..."}` — エラー
-- `data: [DONE]` — 終端
 
 Toolを呼ぶターンでは, モデルが出力したTool呼び出し (`<tool>...</tool>`) もそのまま差分として流れてから, Toolの実行と次のターンの差分へ続く。
 
@@ -77,7 +113,7 @@ case class Config(
 
 ### `HttpServer.resource`
 
-`OpenAILLMServer`を内部で作って立てる。
+`OpenAILLMServer`を内部で作って立てる。レスポンスの`model`名には`LLMServerConfig.model`を使う。
 
 ```scala
 object HttpServer {
@@ -94,7 +130,7 @@ object HttpServer {
 
 ### `HttpServer.from`
 
-`LLMServer`を差し替えて立てる(テストや独自トランスポート用)。
+`LLMServer`を差し替えて立てる(テストや独自トランスポート用)。`model`名はリクエストの`model`を使う。
 
 ```scala
 object HttpServer {
@@ -111,40 +147,17 @@ object HttpServer {
 
 ---
 
-## セッション管理
-
-### `SessionStore`
-
-`sessionId`ごとに`Agent`を保持する。
-
-```scala
-trait SessionStore {
-  def getOrCreate(sessionId: String): IO[Agent]
-  def remove(sessionId: String): IO[Unit]
-  def ids: IO[Vector[String]]
-}
-```
-
-### `SessionStore.inMemory`
-
-`Ref`でメモリ上に保持する実装。`create`は新しいセッションを作るときに呼ばれる。
-
-```scala
-object SessionStore {
-  def inMemory(create: IO[Agent]): IO[SessionStore]
-}
-```
-
-`HttpServer`は`LLMServer`を**全セッションで共有**し(HTTPクライアントを1つに抑える), `Agent`だけをセッションごとに作る。
-
----
-
 ## `Routes`
 
 Pekko HTTPの`Route`。`HttpServer`が内部で使う。
 
 ```scala
-class Routes(sessions: SessionStore) {
+class Routes(
+  llmServer: LLMServer,
+  agentConfig: AgentConfig,
+  model: String,
+  tools: Vector[Tool]
+) {
   def route: Route
 }
 ```
@@ -156,18 +169,24 @@ class Routes(sessions: SessionStore) {
 ## Request / Response
 
 ```scala
-case class ChatRequest(session: String, message: String)
-case class ChatResponse(reply: String)
-case class ErrorResponse(error: String)
+case class RequestMessage(role: String, content: String)
+
+case class ChatCompletionRequest(
+  model: Option[String] = None,
+  messages: Vector[RequestMessage] = Vector.empty,
+  stream: Option[Boolean] = None
+)
+
 case class StatusResponse(status: String)
 
 object JsonCodecs {
-  implicit val chatRequestDecoder: Decoder[ChatRequest]
-  implicit val chatResponseEncoder: Encoder[ChatResponse]
-  implicit val errorResponseEncoder: Encoder[ErrorResponse]
+  implicit val requestMessageDecoder: Decoder[RequestMessage]
+  implicit val chatCompletionRequestDecoder: Decoder[ChatCompletionRequest]
   implicit val statusResponseEncoder: Encoder[StatusResponse]
 }
 ```
+
+`chat.completion` / `chat.completion.chunk` / `error` は`io.circe.Json`で組み立てる。
 
 ---
 
@@ -181,7 +200,9 @@ object JsonCodecs {
 
 IOからPekkoの`Future`への変換には`cats.effect.unsafe.implicits.global`を使っている。
 
-ストリーミング (`/v1/chat/stream`) では, コアの`fs2.Stream`をPekkoの`Source.queue`に橋渡しして`Source[ByteString, _]`として返す。Sourceがmaterializeされた時点でfs2のStreamを走らせ, 差分をqueueへ積む。クライアントが切断するとqueueが閉じ, fs2側のStreamも止まる (LLMServerへの接続も閉じる)。
+`LLMServer`は全リクエストで共有し, リクエストごとに`Agent`を作る(ステートレス)。
+
+ストリーミングでは, コアの`fs2.Stream`をPekkoの`Source.queue`に橋渡しして`Source[ByteString, _]`として返す。Sourceがmaterializeされた時点でfs2のStreamを走らせ, 差分をqueueへ積む。クライアントが切断するとqueueが閉じ, fs2側のStreamも止まる (LLMServerへの接続も閉じる)。
 
 ---
 
@@ -207,6 +228,6 @@ OLLAMA_MODEL=gemma4:e2b ./gradlew :server:runOllamaExample
 ## 制約
 
 - 認証・レート制限は未実装
-- 会話の永続化は未実装(`SessionStore.inMemory`のみ)
-- セッションのTTL・自動削除は未実装(`/v1/sessions/{id}/reset`で明示的に消す)
-- `SessionStore.getOrCreate`は完全には原子的ではなく, 同一`sessionId`への同時初回アクセスで稀に二重生成しうる(先に入った方を採用する)
+- 会話はサーバー側に保持しない (ステートレス)。履歴はクライアントが毎回`messages`で送る
+- `messages[].content`は文字列のみ (マルチモーダルの配列には未対応)
+- `tools` / `tool_choice` / `response_format` などOpenAIのツール指定フィールドは未対応。Toolはサーバーが`HttpServer.resource`/`from`に登録したものが常に有効

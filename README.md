@@ -75,16 +75,15 @@ Toolsが無い場合は`system` / `user` / `assistant`だけになり, 普通の
 - TODO: Write how to use
 
 ## HTTPラッパー / 実行例
-`server`モジュールにHTTPラッパーを置いている(コアの`lib`に重い依存を持ち込まないため別モジュール)。実行例は`server/src/test/scala/org/example/OllamaExample.scala`。
+`server`モジュールにHTTPラッパーを置いている(コアの`lib`に重い依存を持ち込まないため別モジュール)。OpenAI互換の`POST /v1/chat/completions`を提供し, 状態は持たない(`messages`を毎回受け取る)。`stream: true`でSSE。実行例は`server/src/test/scala/org/example/OllamaExample.scala`。
 
 ```bash
 # OllamaにつないでHTTPサーバを立てる
 OLLAMA_MODEL=gemma4:e2b ./gradlew :server:runOllamaExample
 
-# 別ターミナルから
-curl -s -X POST localhost:8080/v1/chat -H 'Content-Type: application/json' \
-  -d '{"session":"u1","message":"今の東京の時刻を教えて"}'
-curl -s -X POST localhost:8080/v1/sessions/u1/reset
+# 別ターミナルから (OpenAI互換, ステートレスなのでmessagesを毎回渡す)
+curl -s -X POST localhost:8080/v1/chat/completions -H 'Content-Type: application/json' \
+  -d '{"model":"gemma4:e2b","messages":[{"role":"user","content":"今の東京の時刻を教えて"}]}'
 curl -s localhost:8080/v1/health
 ```
 

@@ -93,7 +93,7 @@ Toolを登録しなければ, 普通のUserとLLMServerの会話になる。
 ## 3. HTTPサーバとして立てる
 
 `server`モジュールを使うと, そのままHTTPで受け付けられる。
-`session`ごとに1つの`Agent` (=1会話) を保持する。
+OpenAI互換の `POST /v1/chat/completions` で, 状態を持たない (履歴は毎回`messages`で送る)。
 
 ```scala
 import cats.effect.{IO, IOApp}
@@ -120,13 +120,21 @@ object ServerMain extends IOApp.Simple {
 curl -s localhost:8080/v1/health
 # {"status":"ok"}
 
-curl -s -X POST localhost:8080/v1/chat \
+curl -s -X POST localhost:8080/v1/chat/completions \
   -H 'Content-Type: application/json' \
-  -d '{"session":"u1","message":"東京の天気を教えて"}'
-# {"reply":"東京は晴れです"}
+  -d '{"model":"gemma4:e2b","messages":[{"role":"user","content":"東京の天気を教えて"}]}'
+# {"id":"chatcmpl-...","object":"chat.completion",...,"choices":[{"index":0,"message":{"role":"assistant","content":"東京は晴れです"},"finish_reason":"stop"}]}
+```
 
-curl -s -X POST localhost:8080/v1/sessions/u1/reset
-# {"status":"ok"}
+`stream: true` にするとOpenAIと同じSSEで返る:
+
+```bash
+curl -s -N -X POST localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"gemma4:e2b","messages":[{"role":"user","content":"1から5まで数えて"}],"stream":true}'
+# data: {"id":"chatcmpl-...","object":"chat.completion.chunk",...,"choices":[{"index":0,"delta":{"content":"1"},"finish_reason":null}]}
+# ...
+# data: [DONE]
 ```
 
 ## 4. 用意してある実行例で試す
