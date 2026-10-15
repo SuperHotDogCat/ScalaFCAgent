@@ -29,6 +29,9 @@ dependencies {
     implementation 'io.circe:circe-parser_2.13:0.14.15'
     implementation 'io.circe:circe-generic_2.13:0.14.15'
 
+    // IO は公開APIに出るため api で公開する
+    api 'org.typelevel:cats-effect_2.13:3.6.3'
+
     // Use Scalatest for testing our library
     testImplementation libs.junit
     testImplementation libs.scalatest.v2.v13
