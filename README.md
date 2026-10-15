@@ -13,6 +13,12 @@ flowchart LR
     ScalaFCAgentChat -->|Send Updated Conversation| ScalaFCAgentClient
 ```
 
+# ドキュメント
+
+- [Quick Start](docs/quickstart.md)
+- [Reference: コア (Agent / Chat / Tool / LLMServer / Client)](docs/reference/core.md)
+- [Reference: HTTPサーバ (server)](docs/reference/http-server.md)
+
 # 責務
 - ScalaFCAgentClient
 UserとScalaFCAgentChatからのリクエストを受け取りLLMServerへリクエストを送り, 出力に応じてUserとScalaFCAgentChatにリクエストを返す
