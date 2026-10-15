@@ -124,4 +124,69 @@ class ClientSpec extends AnyFunSuite with Matchers {
 
     program.unsafeRunSync().isLeft shouldBe true
   }
+
+  test("Stream the model output when no tool is called") {
+    val program =
+      for {
+        clientAndRequests <- newClient(List("Hello!"))
+        client = clientAndRequests._1
+        chunks <- client.sendStream("hi").compile.toVector
+        history <- client.history
+      } yield (chunks, history)
+
+    val (chunks, history) = program.unsafeRunSync()
+
+    chunks shouldBe Vector("Hello!")
+
+    history.map(_.role) shouldBe Vector(
+      Role.User,
+      Role.Assistant
+    )
+  }
+
+  test("Emit each delta of the model output") {
+    val server = new LLMServer {
+
+      def complete(messages: Vector[Message]): IO[String] =
+        IO.pure("Hello!")
+
+      override def stream(messages: Vector[Message]): fs2.Stream[IO, String] =
+        fs2.Stream.emits(List("Hel", "lo", "!")).covary[IO]
+    }
+
+    val program =
+      for {
+        client <- Client.create(server)
+        chunks <- client.sendStream("hi").compile.toVector
+      } yield chunks
+
+    program.unsafeRunSync() shouldBe Vector("Hel", "lo", "!")
+  }
+
+  test("Stream across a tool call") {
+    val program =
+      for {
+        clientAndRequests <- newClient(List(toolCall, "Here you go."))
+        client = clientAndRequests._1
+        chunks <- client.sendStream("search Scala").compile.toVector
+        history <- client.history
+        sent <- clientAndRequests._2.get
+      } yield (chunks, history, sent)
+
+    val (chunks, history, sent) = program.unsafeRunSync()
+
+    // Tool呼び出しの出力もそのまま流れてから最終出力が流れる
+    chunks.mkString("\n") should include("<tool>")
+    chunks.mkString("\n") should include("Here you go.")
+
+    history.map(_.role) shouldBe Vector(
+      Role.User,
+      Role.Assistant,
+      Role.Tool,
+      Role.Assistant
+    )
+
+    sent should have size 2
+    sent(1).map(_.content).mkString("\n") should include("<tool_result>")
+  }
 }

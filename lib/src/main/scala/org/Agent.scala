@@ -2,6 +2,7 @@ package org.scalafcagent.agent
 
 import cats.effect.IO
 import cats.effect.Resource
+import fs2.Stream
 import org.scalafcagent.chat.Chat
 import org.scalafcagent.chat.ChatFormat
 import org.scalafcagent.chat.Message
@@ -37,6 +38,10 @@ class Agent(
   // Userからの1ターン. Tool解決まで含めた最終出力を返す
   def send(message: String): IO[String] =
     client.send(message)
+
+  // Userからの1ターン. Tool解決まで含めたモデル出力の差分を到着順に流す
+  def sendStream(message: String): Stream[IO, String] =
+    client.sendStream(message)
 
   // 実行中の会話
   def history: IO[Vector[Message]] =

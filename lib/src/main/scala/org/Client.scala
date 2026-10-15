@@ -2,6 +2,7 @@ package org.scalafcagent.client
 
 import cats.effect.IO
 import cats.effect.Ref
+import fs2.Stream
 import org.scalafcagent.chat.Chat
 import org.scalafcagent.chat.Message
 import org.scalafcagent.llm.LLMServer
@@ -29,6 +30,10 @@ class Client(
       _ <- chat.update(_.user(userMessage))
       output <- converse(maxToolCalls)
     } yield output
+
+  // Userからのリクエストを処理し, モデル出力の差分を到着順に流す
+  def sendStream(userMessage: String): Stream[IO, String] =
+    Stream.eval(chat.update(_.user(userMessage))) >> converseStream(maxToolCalls)
 
   // 実行中の会話
   def history: IO[Vector[Message]] =
@@ -64,6 +69,42 @@ class Client(
         // Tool呼び出しが無ければUserへ返す
         result <- if (toolCalls.isEmpty) IO.pure(output) else converse(remaining - 1)
       } yield result
+    }
+
+  // LLMServerの差分を流し, Tool呼び出しがあれば実行して次のターンの差分へ続ける
+  private def converseStream(remaining: Int): Stream[IO, String] =
+    if (remaining <= 0) {
+      Stream.raiseError[IO](
+        new RuntimeException(s"Tool call limit exceeded: $maxToolCalls")
+      )
+    } else {
+      Stream.eval(chat.get).flatMap { current =>
+        Stream.eval(Ref.of[IO, Vector[String]](Vector.empty)).flatMap { collected =>
+          val deltas =
+            llmServer
+              .stream(current.messages)
+              .evalTap(chunk => collected.update(_ :+ chunk))
+
+          // 差分を流し終えてから, 溜めた出力でTool呼び出しを判定する
+          deltas ++ Stream.eval(collected.get).flatMap { chunks =>
+            val output = chunks.mkString
+            val assistant = current.assistant(output)
+            val toolCalls = assistant.toolCalls(output)
+
+            Stream
+              .eval {
+                for {
+                  updated <- assistant.runToolCalls(output)
+                  _ <- chat.set(updated)
+                } yield toolCalls.isEmpty
+              }
+              .flatMap { finished =>
+                if (finished) Stream.empty
+                else converseStream(remaining - 1)
+              }
+          }
+        }
+      }
     }
 }
 

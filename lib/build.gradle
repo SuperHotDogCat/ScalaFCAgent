@@ -32,6 +32,9 @@ dependencies {
     // IO は公開APIに出るため api で公開する
     api 'org.typelevel:cats-effect_2.13:3.6.3'
 
+    // ストリーミング (Stream) も公開APIに出るため api で公開する
+    api 'co.fs2:fs2-core_2.13:3.11.0'
+
     // Use Scalatest for testing our library
     testImplementation libs.junit
     testImplementation libs.scalatest.v2.v13

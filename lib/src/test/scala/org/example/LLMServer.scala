@@ -144,4 +144,43 @@ class OpenAILLMServerSpec extends AnyFunSuite with Matchers {
 
     result.isLeft shouldBe true
   }
+
+  test("Stream the content deltas from an SSE response") {
+    val sse =
+      """data: {"choices":[{"delta":{"role":"assistant","content":"Hel"}}]}
+        |
+        |data: {"choices":[{"delta":{"content":"lo!"}}]}
+        |
+        |data: [DONE]
+        |
+        |""".stripMargin
+
+    val (deltas, body, path) =
+      withStubServer(sse) { baseUrl =>
+        newServer(baseUrl)
+          .stream(Vector(Message(Role.User, "hi")))
+          .compile
+          .toVector
+      }
+
+    deltas shouldBe Vector("Hel", "lo!")
+    path shouldBe "/v1/chat/completions"
+
+    val json = parse(body).toOption.get
+    // ストリーミングでは stream: true を送る
+    json.hcursor.get[Boolean]("stream").toOption shouldBe Some(true)
+  }
+
+  test("Fail on a non-2xx streaming response") {
+    val (result, _, _) =
+      withStubServer("""{"error":"boom"}""", status = 500) { baseUrl =>
+        newServer(baseUrl)
+          .stream(Vector(Message(Role.User, "hi")))
+          .compile
+          .drain
+          .attempt
+      }
+
+    result.isLeft shouldBe true
+  }
 }
