@@ -13,3 +13,6 @@ build
 
 # Ignore Kotlin plugin data
 .kotlin
+
+# Ignore Metals (Scala IDE) local state
+.metals/
