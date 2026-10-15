@@ -189,4 +189,27 @@ class ClientSpec extends AnyFunSuite with Matchers {
     sent should have size 2
     sent(1).map(_.content).mkString("\n") should include("<tool_result>")
   }
+
+  test("Replace the conversation when sending full messages") {
+    val program =
+      for {
+        clientAndRequests <- newClient(List("first", "second"))
+        client = clientAndRequests._1
+        _ <- client.send("hi")
+        output <- client.send(Vector(Message(Role.User, "again")))
+        history <- client.history
+        sent <- clientAndRequests._2.get
+      } yield (output, history, sent)
+
+    val (output, history, sent) = program.unsafeRunSync()
+
+    output shouldBe "second"
+
+    // 履歴は置き換えられ, 与えたmessagesとその応答になる
+    history.map(_.role) shouldBe Vector(Role.User, Role.Assistant)
+
+    // 2回目のリクエストに1回目の応答は含まれない
+    sent should have size 2
+    sent(1).map(_.content).mkString("\n") should not include "first"
+  }
 }

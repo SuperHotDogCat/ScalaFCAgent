@@ -171,6 +171,14 @@ class Chat(
       format = format
     )
 
+  // 複数のメッセージをまとめて追加する
+  def appendAll(additional: Vector[Message]): Chat =
+    new Chat(
+      toolEngine = toolEngine,
+      messages = messages ++ additional,
+      format = format
+    )
+
   def system(content: String): Chat =
     append(Message(Role.System, content))
 

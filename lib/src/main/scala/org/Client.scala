@@ -35,6 +35,17 @@ class Client(
   def sendStream(userMessage: String): Stream[IO, String] =
     Stream.eval(chat.update(_.user(userMessage))) >> converseStream(maxToolCalls)
 
+  // 会話 (messages全体) を渡して1ターン実行する. 会話は初期状態に置き換える
+  // (OpenAI互換APIのように履歴を毎回受け取る用途向け)
+  def send(messages: Vector[Message]): IO[String] =
+    for {
+      _ <- chat.set(initialChat.appendAll(messages))
+      output <- converse(maxToolCalls)
+    } yield output
+
+  def sendStream(messages: Vector[Message]): Stream[IO, String] =
+    Stream.eval(chat.set(initialChat.appendAll(messages))) >> converseStream(maxToolCalls)
+
   // 実行中の会話
   def history: IO[Vector[Message]] =
     chat.get.map(_.messages)

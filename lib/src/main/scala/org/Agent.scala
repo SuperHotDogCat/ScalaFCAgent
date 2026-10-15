@@ -43,6 +43,13 @@ class Agent(
   def sendStream(message: String): Stream[IO, String] =
     client.sendStream(message)
 
+  // 会話 (messages全体) を渡して1ターン実行する (OpenAI互換APIのように履歴を毎回受け取る用途向け)
+  def send(messages: Vector[Message]): IO[String] =
+    client.send(messages)
+
+  def sendStream(messages: Vector[Message]): Stream[IO, String] =
+    client.sendStream(messages)
+
   // 実行中の会話
   def history: IO[Vector[Message]] =
     client.history

@@ -4,6 +4,7 @@ import cats.effect.IO
 import cats.effect.Ref
 import cats.effect.unsafe.implicits.global
 import org.junit.runner.RunWith
+import org.scalafcagent.chat.Message
 import org.scalafcagent.chat.Role
 import org.scalafcagent.llm.LLMServer
 import org.scalafcagent.llm.LLMServerConfig
@@ -129,6 +130,22 @@ class AgentSpec extends AnyFunSuite with Matchers {
 
     history.map(_.role) shouldBe Vector(Role.System)
     history.head.content should include("## Available Tools")
+  }
+
+  test("Send full messages and keep the tool instructions") {
+    val program =
+      for {
+        server <- mockLLMServer(List("Hello!"))
+        history <- Agent
+          .from(server, AgentConfig(), new SearchTool)
+          .use(agent => agent.send(Vector(Message(Role.User, "hi"))) *> agent.history)
+      } yield history
+
+    val messages = program.unsafeRunSync()
+
+    // 初期Chat (Toolの使い方のsystem) の後ろにmessagesが載る
+    messages.map(_.role) shouldBe Vector(Role.System, Role.User, Role.Assistant)
+    messages.head.content should include("## Available Tools")
   }
 
   test("Create builds an OpenAI-compatible Agent from LLMServerConfig") {
