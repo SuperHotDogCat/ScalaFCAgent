@@ -136,6 +136,29 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
     (response.statusCode(), response.body())
   }
 
+  private def postWithContentType(
+    port: Int,
+    path: String,
+    body: String
+  ): (Int, String, String) = {
+    val request =
+      HttpRequest
+        .newBuilder()
+        .uri(URI.create(s"http://127.0.0.1:$port$path"))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(body))
+        .build()
+
+    val response =
+      client.send(request, HttpResponse.BodyHandlers.ofString())
+
+    (
+      response.statusCode(),
+      response.headers().firstValue("Content-Type").orElse(""),
+      response.body()
+    )
+  }
+
   test("Reply to a chat request") {
     val program =
       for {
@@ -278,5 +301,57 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
     val (status, _) = program.unsafeRunSync()
 
     status shouldBe 400
+  }
+
+  test("Stream the reply as server-sent events") {
+    val program =
+      for {
+        mock <- mockLLMServer(List("Hello!"))
+        server = mock._1
+        result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
+          IO.blocking(
+            postWithContentType(
+              http.port,
+              "/v1/chat/stream",
+              """{"session":"u1","message":"hi"}"""
+            )
+          )
+        }
+      } yield result
+
+    val (status, contentType, body) = program.unsafeRunSync()
+
+    status shouldBe 200
+    contentType should include("text/event-stream")
+    body shouldBe "data: {\"delta\":\"Hello!\"}\n\ndata: [DONE]\n\n"
+  }
+
+  test("Stream across a tool call as server-sent events") {
+    val program =
+      for {
+        mock <- mockLLMServer(List(echoCall, "Done"))
+        server = mock._1
+        requests = mock._2
+        result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
+          IO.blocking(
+            postWithContentType(
+              http.port,
+              "/v1/chat/stream",
+              """{"session":"u1","message":"echo hi"}"""
+            )
+          )
+        }
+        sent <- requests.get
+      } yield (result, sent)
+
+    val ((status, _, body), sent) = program.unsafeRunSync()
+
+    status shouldBe 200
+    body should include("Done")
+    body should include("[DONE]")
+
+    // Toolの結果が2回目のリクエストに含まれている
+    sent should have size 2
+    sent(1).map(_.content).mkString("\n") should include("<tool_result>")
   }
 }

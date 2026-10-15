@@ -21,6 +21,10 @@ import org.scalafcagent.server.HttpServer
 //   curl -s -X POST localhost:8080/v1/chat -H 'Content-Type: application/json' \
 //     -d '{"session":"u1","message":"今の東京の時刻を教えて"}'
 //
+//   ストリーミング (SSE):
+//   curl -s -N -X POST localhost:8080/v1/chat/stream -H 'Content-Type: application/json' \
+//     -d '{"session":"u1","message":"今の東京の時刻を教えて"}'
+//
 // 環境変数:
 //   HOST          (default 127.0.0.1)
 //   PORT          (default 8080)
