@@ -1,0 +1,52 @@
+/*
+ * HTTPリクエストを受け付けるラッパー (Pekko HTTP)
+ * コア (lib) に重い依存を持ち込まないよう別モジュールにしている
+ */
+
+plugins {
+    id 'scala'
+    id 'java-library'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':lib')
+
+    implementation libs.scala.library
+
+    // IO は lib の api として見えるが, 明示しておく
+    implementation 'org.typelevel:cats-effect_2.13:3.6.3'
+
+    implementation 'io.circe:circe-core_2.13:0.14.15'
+    implementation 'io.circe:circe-parser_2.13:0.14.15'
+    implementation 'io.circe:circe-generic_2.13:0.14.15'
+
+    // Apache Pekko HTTP (Akka HTTP の Apache-2.0 ドロップインFork)
+    // Akka HTTP 10.4+ は BSL 1.1 で, 依存 (akka-actor/stream) は Maven Central で入手できないため Pekko を使う
+    implementation 'org.apache.pekko:pekko-http_2.13:1.1.0'
+    // pekko-http は pekko-actor / pekko-stream を provided 扱いにするので明示する
+    implementation 'org.apache.pekko:pekko-actor_2.13:1.1.0'
+    implementation 'org.apache.pekko:pekko-stream_2.13:1.1.0'
+
+    testImplementation libs.junit
+    testImplementation libs.scalatest.v2.v13
+    testImplementation libs.junit.v4.v13.v2.v13
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+// 実行例 (test sources にある OllamaExample) を走らせる
+// 例: OLLAMA_MODEL=gemma4:e2b ./gradlew :server:runOllamaExample
+tasks.register('runOllamaExample', JavaExec) {
+    group = 'application'
+    description = 'Run the Ollama usage example (needs a local Ollama)'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'org.scalafcagent.server.example.OllamaExample'
+}

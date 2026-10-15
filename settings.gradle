@@ -12,3 +12,4 @@ plugins {
 
 rootProject.name = 'function-calling-made-by-FP'
 include('lib')
+include('server')
