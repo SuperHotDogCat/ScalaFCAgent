@@ -1,0 +1,53 @@
+site_name: function-calling-made-by-FP
+site_description: LLM ServerとユーザーのあいだでTool呼び出しを仲介するScalaライブラリ
+site_url: https://superhotdogcat.github.io/function-calling-made-by-FP/
+repo_url: https://github.com/SuperHotDogCat/function-calling-made-by-FP
+repo_name: SuperHotDogCat/function-calling-made-by-FP
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  language: ja
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: ダークモードに切り替え
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: ライトモードに切り替え
+
+nav:
+  - Home: README.md
+  - Quick Start: quickstart.md
+  - Reference:
+      - コア: reference/core.md
+      - HTTPサーバ: reference/http-server.md
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format

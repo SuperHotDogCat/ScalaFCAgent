@@ -16,3 +16,6 @@ build
 
 # Ignore Metals (Scala IDE) local state
 .metals/
+
+# MkDocs build output
+site/
