@@ -1,8 +1,8 @@
 site_name: function-calling-made-by-FP
 site_description: LLM ServerとユーザーのあいだでTool呼び出しを仲介するScalaライブラリ
-site_url: https://superhotdogcat.github.io/function-calling-made-by-FP/
-repo_url: https://github.com/SuperHotDogCat/function-calling-made-by-FP
-repo_name: SuperHotDogCat/function-calling-made-by-FP
+site_url: https://superhotdogcat.github.io/ScalaFCAgent/
+repo_url: https://github.com/SuperHotDogCat/ScalaFCAgent
+repo_name: SuperHotDogCat/ScalaFCAgent
 edit_uri: edit/main/docs/
 
 docs_dir: docs
