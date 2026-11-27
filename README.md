@@ -40,6 +40,7 @@ docs/    # ドキュメント
 GitHub Pages: https://superhotdogcat.github.io/ScalaFCAgent/
 
 - [Quick Start](docs/quickstart.md)
+- [使用ライブラリ入門](docs/libraries.md) — Cats Effect / fs2 / circe / Pekko HTTPの使いどころ
 - [Examples](docs/examples/README.md) — 対話CLI, 型付きTool, HTTPサーバ, ChatFormat, テストの例
 - [API Reference](docs/api/README.md) — 各APIの解説・返り値・使用例
 

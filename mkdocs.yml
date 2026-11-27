@@ -29,9 +29,18 @@ theme:
         icon: material/brightness-4
         name: ライトモードに切り替え
 
+plugins:
+  - search
+  # 削除した旧ページのURLを新しいページへ転送する
+  - redirects:
+      redirect_maps:
+        reference/core.md: api/README.md
+        reference/http-server.md: api/server.md
+
 nav:
   - Home: README.md
   - Quick Start: quickstart.md
+  - 使用ライブラリ入門: libraries.md
   - Examples:
       - examples/README.md
       - Basic:
