@@ -13,6 +13,7 @@ theme:
   language: ja
   features:
     - navigation.sections
+    - navigation.indexes
     - navigation.top
     - content.code.copy
     - search.highlight
@@ -31,12 +32,34 @@ theme:
 nav:
   - Home: README.md
   - Quick Start: quickstart.md
-  - Reference:
-      - コア: reference/core.md
-      - HTTPサーバ: reference/http-server.md
+  - Examples:
+      - examples/README.md
+      - Basic:
+          - 対話CLIエージェント: examples/basic/interactive_cli.md
+      - Tools:
+          - 型付きToolを作る: examples/tools/typed_tools.md
+          - Shellを実行するTool: examples/tools/shell_tool.md
+      - Serving:
+          - OpenAI互換HTTPサーバ: examples/serving/openai_compatible_server.md
+      - Features:
+          - ChatFormat: examples/features/custom_chat_format.md
+      - Testing:
+          - モックLLMServer: examples/testing/mock_llm_server.md
+  - API Reference:
+      - api/README.md
+      - agent: api/agent.md
+      - tool: api/tool.md
+      - chat: api/chat.md
+      - llm: api/llm.md
+      - client: api/client.md
+      - server: api/server.md
 
 markdown_extensions:
   - admonition
+  - attr_list
+  - pymdownx.details
+  - pymdownx.tabbed:
+      alternate_style: true
   - tables
   - toc:
       permalink: true

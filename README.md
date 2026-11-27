@@ -40,8 +40,8 @@ docs/    # ドキュメント
 GitHub Pages: https://superhotdogcat.github.io/ScalaFCAgent/
 
 - [Quick Start](docs/quickstart.md)
-- [Reference: コア (Agent / Chat / Tool / LLMServer / Client)](docs/reference/core.md)
-- [Reference: HTTPサーバ (server)](docs/reference/http-server.md)
+- [Examples](docs/examples/README.md) — 対話CLI, 型付きTool, HTTPサーバ, ChatFormat, テストの例
+- [API Reference](docs/api/README.md) — 各APIの解説・返り値・使用例
 
 ## コンポーネントと責務
 
@@ -127,7 +127,7 @@ curl -s -N -X POST localhost:8080/v1/chat/completions -H 'Content-Type: applicat
 ```
 
 環境変数は`HOST` / `PORT` / `OLLAMA_HOST` / `OLLAMA_MODEL`で差し替えられる。
-詳細は[Reference: HTTPサーバ](docs/reference/http-server.md)を参照。
+詳細は[API Reference: server](docs/api/server.md)を参照。
 
 ## ビルド / テスト
 
