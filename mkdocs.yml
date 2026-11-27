@@ -58,6 +58,7 @@ nav:
       - api/README.md
       - agent: api/agent.md
       - tool: api/tool.md
+      - tool.defaults: api/defaults.md
       - chat: api/chat.md
       - llm: api/llm.md
       - client: api/client.md

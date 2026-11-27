@@ -3,6 +3,10 @@
 LLMが生成した1行のコマンドを`sh -c`で実行し, 標準出力と標準エラーをまとめて返すTool。
 外部プロセスを扱うTool (タイムアウト, 出力の打ち切り, 一時ファイルの後始末) の書き方の例になっている。
 
+!!! tip "ライブラリ同梱版"
+    同じ仕様のToolが[`org.scalafcagent.tool.defaults.ShellTool`](../../api/defaults.md#shelltool)として`lib`に入っている (引数名は`command`)。
+    ファイルの検索・表示・編集用のTool ([`DefaultTools`](../../api/defaults.md)) と組み合わせて使える。
+
 使うAPI: [`TypedTool`](../../api/tool.md#typedtool), [`ToolResult`](../../api/tool.md#toolresult)
 
 !!! danger "本物の環境では登録しないこと"

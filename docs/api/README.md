@@ -41,6 +41,14 @@ Toolの定義と実行。`lib`モジュール, パッケージ`org.scalafcagent.
 - [`ToolEngine`](./tool.md#toolengine) — 名前からToolを引いて実行する
 - [`ToolError`](./tool.md#toolerror) — 引数のdecodeエラー
 
+### Default Tools
+
+よく使うToolの実装 (SWE-agent流のファイル検索・表示・編集とshell)。`lib`モジュール, パッケージ`org.scalafcagent.tool.defaults`。
+
+- [`DefaultTools`](./defaults.md#defaulttools) — Toolの組み合わせ (`readOnly` / `fileSystem` / `all`)
+- [`Workspace`](./defaults.md#workspace) — Toolが扱うディレクトリ
+- [`find_file`](./defaults.md#findfiletool) / [`search_dir`](./defaults.md#searchdirtool) / [`search_file`](./defaults.md#searchfiletool) / [`view_file`](./defaults.md#viewfiletool) / [`create_file`](./defaults.md#createfiletool) / [`edit_file`](./defaults.md#editfiletool) / [`shell`](./defaults.md#shelltool)
+
 ### Chat
 
 会話の表現とTool呼び出しの形式。`lib`モジュール, パッケージ`org.scalafcagent.chat`。

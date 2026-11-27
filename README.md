@@ -110,6 +110,12 @@ Agent.create(llm, new MyTool).use { agent =>
 
 全体の例は[Quick Start](docs/quickstart.md)を参照。
 
+よく使うTool (`find_file` / `search_dir` / `search_file` / `view_file` / `create_file` / `edit_file` / `shell`) は`org.scalafcagent.tool.defaults`に入っている ([API](docs/api/defaults.md))。
+
+```scala
+Agent.create(llm, DefaultTools.fileSystem(Workspace.current): _*)
+```
+
 ### HTTPサーバ (OpenAI互換)
 
 ```bash
