@@ -3,6 +3,7 @@
 ScalaFCAgent (function-calling-made-by-FP) のドキュメント。
 
 - [Quick Start](./quickstart.md) — 最小構成から動かすまで
+- [使用ライブラリ入門](./libraries.md) — Cats Effect / fs2 / circe / Pekko HTTPをこのリポジトリでどう使っているか
 - [Examples](./examples/README.md) — アプリケーション例 (対話CLI, 型付きTool, HTTPサーバ, ChatFormat, テスト)
 - [API Reference](./api/README.md) — 各APIの解説・返り値・使用例
   - [agent](./api/agent.md) / [tool](./api/tool.md) / [chat](./api/chat.md) / [llm](./api/llm.md) / [client](./api/client.md) / [server](./api/server.md)
