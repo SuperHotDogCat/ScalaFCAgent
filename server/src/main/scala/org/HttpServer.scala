@@ -220,9 +220,6 @@ class Routes(
       fs2.Stream
         .resource(agent)
         .flatMap(_.sendStream(messages))
-        .handleErrorWith(error =>
-          fs2.Stream.emit(errorFrame("server_error", error.getMessage))
-        )
 
     HttpResponse(
       status = StatusCodes.OK,
@@ -273,7 +270,14 @@ class Routes(
     val finish =
       fs2.Stream.emit(chunk(Json.obj(), "stop".asJson))
 
-    role ++ content ++ finish ++ fs2.Stream.emit(sseDoneFrame)
+    // 途中で失敗したら, 差分 (delta.content) には包まず独立したerrorフレームを送り,
+    // finishの差分は送らずに [DONE] で終える
+    val frames =
+      (role ++ content ++ finish).handleErrorWith(error =>
+        fs2.Stream.emit(errorFrame("server_error", error.getMessage))
+      )
+
+    frames ++ fs2.Stream.emit(sseDoneFrame)
   }
 
   private def completionJson(

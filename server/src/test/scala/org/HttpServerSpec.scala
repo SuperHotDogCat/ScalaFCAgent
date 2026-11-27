@@ -370,4 +370,44 @@ class HttpServerSpec extends AnyFunSuite with Matchers {
     sent should have size 2
     sent(1).map(_.content).mkString("\n") should include("<tool_result>")
   }
+
+  test("Stream an error as a separate server-sent event") {
+    val program =
+      for {
+        // 出力を用意しないので, LLMServerの呼び出しが失敗する
+        mock <- mockLLMServer(Nil)
+        server = mock._1
+        result <- HttpServer.from(server, AgentConfig(), testConfig, tool).use { http =>
+          IO.blocking(
+            postWithContentType(
+              http.port,
+              "/v1/chat/completions",
+              """{"messages":[{"role":"user","content":"hi"}],"stream":true}"""
+            )
+          )
+        }
+      } yield result
+
+    val (status, _, responseBody) = program.unsafeRunSync()
+
+    status shouldBe 200
+
+    val frames =
+      responseBody
+        .split("\n\n")
+        .toVector
+        .map(_.stripPrefix("data: "))
+
+    // roleの差分, errorフレーム, [DONE] の順
+    frames should have size 3
+    frames.last shouldBe "[DONE]"
+
+    val error = parse(frames(1)).toOption.get
+    errorMessage(error) shouldBe Some("no more responses")
+    error.hcursor.downField("error").get[String]("type") shouldBe Right("server_error")
+
+    // errorが本文の差分に包まれていない
+    responseBody should not include ("\"content\":\"data:")
+    responseBody should not include ("\"finish_reason\":\"stop\"")
+  }
 }
