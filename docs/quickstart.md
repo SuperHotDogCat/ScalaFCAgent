@@ -156,5 +156,5 @@ OLLAMA_MODEL=gemma4:e2b ./gradlew :server:runOllamaExample
 
 ## 次に読む
 
-- [コアのリファレンス](./reference/core.md)
-- [HTTPサーバのリファレンス](./reference/http-server.md)
+- [Examples](./examples/README.md) — アプリケーション例
+- [API Reference](./api/README.md) — 各APIの解説・返り値・使用例

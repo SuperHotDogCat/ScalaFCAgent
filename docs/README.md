@@ -3,9 +3,9 @@
 ScalaFCAgent (function-calling-made-by-FP) のドキュメント。
 
 - [Quick Start](./quickstart.md) — 最小構成から動かすまで
-- Reference
-  - [コア (Agent / Chat / Tool / LLMServer / Client)](./reference/core.md)
-  - [HTTPサーバ (server)](./reference/http-server.md)
+- [Examples](./examples/README.md) — アプリケーション例 (対話CLI, 型付きTool, HTTPサーバ, ChatFormat, テスト)
+- [API Reference](./api/README.md) — 各APIの解説・返り値・使用例
+  - [agent](./api/agent.md) / [tool](./api/tool.md) / [chat](./api/chat.md) / [llm](./api/llm.md) / [client](./api/client.md) / [server](./api/server.md)
 
 ## モジュール構成
 
